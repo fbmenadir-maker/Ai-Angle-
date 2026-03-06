@@ -1,40 +1,28 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import fetch from "node-fetch";
+import { GoogleGenAI } from "@google/genai";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    const { prompt, size = "1024x1024" } = req.body;
+export async function generateImageFromPrompt(
+  apiKey: string,
+  base64Data: string,
+  mimeType: string,
+  prompt: string
+): Promise<string> {
+  if (!apiKey) throw new Error("API Key is missing.");
 
-    if (!prompt) {
-      return res.status(400).json({ error: "Prompt is required" });
-    }
+  const ai = new GoogleGenAI({ apiKey });
 
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: [
+      { type: 'image', data: base64Data, mimeType },
+      { type: 'text', text: prompt }
+    ]
+  });
 
-    if (!GEMINI_API_KEY) {
-      return res.status(500).json({ error: "Gemini API Key not configured" });
-    }
+  const part = response?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+  if (!part) throw new Error("No image generated");
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta2/images:generate",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GEMINI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "image-alpha-001",
-          prompt,
-          size,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json(data);
+  return `data:image/png;base64,${part.inlineData.data}`;
+}      return res.status(response.status).json(data);
     }
 
     res.status(200).json({ imageUrl: data.data[0].url });
