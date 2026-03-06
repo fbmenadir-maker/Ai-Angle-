@@ -27,14 +27,63 @@ type Language = 'en' | 'fr' | 'ar';
 
 interface Angle {
   id: string;
-  title: {
-    en: string;
-    fr: string;
-    ar: string;
-  };
+  title: { en: string; fr: string; ar: string };
   prompt: string;
 }
 
+// --- Camera Angles ---
+const ANGLES: Angle[] = [
+  {
+    id: 'top-down',
+    title: { en: 'Top-down view', fr: 'Vue de dessus', ar: 'منظر من الأعلى' },
+    prompt: 'Execute a 90-degree vertical overhead shot. The camera is positioned directly above the subject, looking straight down. Capture a perfect planimetric view of the scene.'
+  },
+  // ... (يمكنك الاحتفاظ بكل الزوايا كما هي)
+];
+
+// --- Translations ---
+const TRANSLATIONS = {
+  en: { title: 'AI ANGLE By Nadir Infograph', uploadTitle: 'Upload Image', uploadDesc: 'Drag and drop or click to select', selectAngle: 'Select Camera Angle', custom: 'Custom Controls', rotation: 'Horizontal Rotation', tilt: 'Vertical Tilt', zoom: 'Zoom Level', height: 'Camera Height', generate: 'Generate Image', generating: 'Generating...', download: 'Download', footer: 'This tool was developed by: Nadir Houamria', error: 'An error occurred. Please try again.', noImage: 'Please upload an image first.', noAngle: 'Please select an angle or use custom controls.', reset: 'Reset Sliders' },
+  fr: { title: 'AI ANGLE Par Nadir Infograph', uploadTitle: 'Télécharger l\'image', uploadDesc: 'Glissez-déposez ou cliquez pour sélectionner', selectAngle: 'Sélectionner l\'angle de la caméra', custom: 'Contrôles Personnalisés', rotation: 'Rotation Horizontale', tilt: 'Inclinaison Verticale', zoom: 'Niveau de Zoom', height: 'Hauteur de Caméra', generate: 'Générer l\'image', generating: 'Génération...', download: 'Télécharger', footer: 'Cet outil a été développé par : Nadir Houamria', error: 'Une erreur est survenue. Veuillez réessayer.', noImage: 'Veuillez d\'abord télécharger une image.', noAngle: 'Veuillez sélectionner un angle ou utiliser les contrôles.', reset: 'Réinitialiser' },
+  ar: { title: 'AI ANGLE By Nadir Infograph', uploadTitle: 'رفع صورة', uploadDesc: 'اسحب وأفلت أو انقر للاختيار', selectAngle: 'اختر زاوية الكاميرا', custom: 'مخصص', rotation: 'دوران أفقي', tilt: 'إمالة رأسية', zoom: 'مستوى التقريب', height: 'ارتفاع الكاميرا', generate: 'توليد الصورة', generating: 'جاري التوليد...', download: 'تحميل', footer: 'هذه الآداة من تطوير : حوامرية نذير', error: 'حدث خطأ. يرجى المحاولة مرة أخرى.', noImage: 'يرجى رفع صورة أولاً.', noAngle: 'يرجى اختيار زاوية أو استخدام أدوات التحكم المخصصة.', reset: 'إعادة تعيين' }
+};
+
+export default function App() {
+  const [lang, setLang] = useState<Language>('ar');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedAngle, setSelectedAngle] = useState<string>('');
+  const [rotation, setRotation] = useState(0);
+  const [tilt, setTilt] = useState(0);
+  const [zoom, setZoom] = useState(1.0);
+  const [height, setHeight] = useState(0);
+  const [isCustomActive, setIsCustomActive] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const t = TRANSLATIONS[lang];
+  const isRtl = lang === 'ar';
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+        setGeneratedImage(null);
+        setError(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const resetCustom = () => {
+    setRotation(0); setTilt(0); setZoom(1.0); setHeight(0);
+  };
+
+  const generateImage = async () => {
+    if
 // --- Constants ---
 const ANGLES: Angle[] = [
   {
