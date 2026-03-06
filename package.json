@@ -1,6 +1,6 @@
 {
   "name": "ai-angle",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,13 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "lucide-react": "^0.338.0",
+    "@google/genai": "^0.2.0",
     "framer-motion": "^10.12.16",
-    "@google/genai": "^0.2.0"  // ✅ نسخة موجودة على npm
+    "lucide-react": "^0.280.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/react": "^18.2.14",
+    "@types/react-dom": "^18.2.7",
     "typescript": "^5.2.2",
     "vite": "^6.4.1",
     "@vitejs/plugin-react": "^4.0.0"
