@@ -4,37 +4,210 @@
  */
 
 import React, { useState, useRef, useMemo } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { 
-  Upload, 
-  Download, 
-  Camera, 
-  Loader2, 
-  ChevronDown,
-  Sparkles,
-  User,
-  SlidersHorizontal,
-  Maximize,
-  Minimize,
-  Move,
-  RotateCcw,
-  Settings2,
-  Key,
-  ExternalLink
+  Upload, Download, Camera, Loader2, ChevronDown, Sparkles,
+  RotateCcw, SlidersHorizontal, Maximize, Minimize, Move, Settings2, Key, ExternalLink, User
 } from 'lucide-react';
-import { Language } from './types';
 import { ANGLES, TRANSLATIONS } from './constants';
+import { Language } from './types';
+import { generateImageFromPrompt } from './api/generateImage';
 
 export default function App() {
   const [lang, setLang] = useState<Language>('ar');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedAngle, setSelectedAngle] = useState<string>('');
-  
-  // Custom Sliders State
+
+  // Custom Sliders
   const [rotation, setRotation] = useState(0);
   const [tilt, setTilt] = useState(0);
   const [zoom, setZoom] = useState(1.0);
   const [height, setHeight] = useState(0);
+  const [isCustomActive, setIsCustomActive] = useState(false);
+
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [userApiKey, setUserApiKey] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const t = useMemo(() => TRANSLATIONS[lang], [lang]);
+  const isRtl = lang === 'ar';
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+        setGeneratedImage(null);
+        setError(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const resetCustom = () => {
+    setRotation(0);
+    setTilt(0);
+    setZoom(1.0);
+    setHeight(0);
+  };
+
+  const generateImage = async () => {
+    if (!selectedImage) return setError(t.noImage);
+    if (!selectedAngle && !isCustomActive) return setError(t.noAngle);
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const apiKeyToUse = userApiKey || process.env.REACT_APP_GEMINI_API_KEY;
+      if (!apiKeyToUse) throw new Error("API Key is missing");
+
+      let finalPrompt = '';
+      if (isCustomActive) {
+        finalPrompt = `Act as a 3D camera operator. Re-render this scene with these parameters:
+        - Rotation: ${rotation}°, Tilt: ${tilt}°, Zoom: ${zoom}x, Height: ${height} units.
+        CRITICAL: Maintain identity, colors, no duplicates, high resolution.`;
+      } else {
+        const angleData = ANGLES.find(a => a.id === selectedAngle);
+        if (!angleData) throw new Error("Invalid angle");
+        finalPrompt = `Generate a new image from a different perspective: ${angleData.prompt}. Maintain identity, colors, no duplicates.`;
+      }
+
+      const base64Data = selectedImage.split(',')[1];
+      const mimeType = selectedImage.split(';')[0].split(':')[1];
+
+      const generated = await generateImageFromPrompt(apiKeyToUse, base64Data, mimeType, finalPrompt);
+      setGeneratedImage(generated);
+
+    } catch (err) {
+      console.error(err);
+      setError(t.error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const downloadImage = () => {
+    if (!generatedImage) return;
+    const link = document.createElement('a');
+    link.href = generatedImage;
+    link.download = `ai-angle-${isCustomActive ? 'custom' : selectedAngle}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className={`min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-yellow-400 selection:text-black ${isRtl ? 'rtl' : 'ltr'}`}>
+      
+      {/* Header / Language + Key */}
+      <header className="p-4 border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-4xl mx-auto flex flex-col items-center gap-4">
+          <div className="w-full flex items-center justify-between">
+            <div className="flex-1" />
+            <div className="flex justify-center gap-4">
+              {['fr','ar','en'].map(code => (
+                <button key={code} onClick={() => setLang(code as Language)}
+                  className={`p-1.5 rounded-full transition-all duration-300 ${lang===code?'ring-2 ring-yellow-400':'opacity-50 grayscale hover:grayscale-0'}`}
+                >
+                  <img src={`https://flagcdn.com/w40/${code==='ar'?'dz':'fr'==='fr'?'fr':'gb'}.png`} className="w-8 h-8 rounded-full" referrerPolicy="no-referrer"/>
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 flex justify-end">
+              <input 
+                type="password"
+                placeholder={t.apiKeyPlaceholder}
+                value={userApiKey}
+                onChange={e => setUserApiKey(e.target.value)}
+                className="w-40 bg-white/5 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-center placeholder:text-white/20"
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-12 space-y-12">
+        {/* Upload */}
+        <div className={`relative group cursor-pointer border-2 border-dashed rounded-3xl p-8 min-h-[300px] ${selectedImage?'border-yellow-400/50 bg-yellow-400/5':'border-white/10 hover:border-yellow-400/30 hover:bg-white/5'}`} onClick={() => fileInputRef.current?.click()}>
+          {selectedImage ? <img src={selectedImage} alt="Original" className="absolute inset-0 w-full h-full object-contain p-4" /> :
+            <div className="text-center space-y-4">
+              <Upload className="w-10 h-10 text-black mx-auto" />
+              <div><h3>{t.uploadTitle}</h3><p className="text-white/40">{t.uploadDesc}</p></div>
+            </div>
+          }
+          <input type="file" ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*"/>
+        </div>
+
+        {/* Controls */}
+        <div className="space-y-8">
+          {!isCustomActive && (
+            <select value={selectedAngle} onChange={e => setSelectedAngle(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4">
+              <option value="" disabled>{t.selectAngle}</option>
+              {ANGLES.map(a => <option key={a.id} value={a.id}>{a.title[lang]}</option>)}
+            </select>
+          )}
+
+          {isCustomActive && (
+            <div className="space-y-6 bg-white/5 border border-white/10 rounded-3xl p-6">
+              {[
+                {label:t.rotation,value:rotation,set:setRotation,min:-180,max:180,icon:<RotateCcw className="w-4 h-4 text-yellow-400"/>},
+                {label:t.tilt,value:tilt,set:setTilt,min:-90,max:90,icon:<SlidersHorizontal className="w-4 h-4 text-yellow-400"/>},
+                {label:t.zoom,value:zoom,set:setZoom,min:0.5,max:3,step:0.1,icon:zoom>1?<Maximize className="w-4 h-4 text-yellow-400"/>:<Minimize className="w-4 h-4 text-yellow-400"/>},
+                {label:t.height,value:height,set:setHeight,min:-50,max:50,icon:<Move className="w-4 h-4 text-yellow-400"/>}
+              ].map(({label,value,set,min,max,step,icon}) => (
+                <div key={label}>
+                  <div className="flex justify-between"><span className="flex items-center gap-2">{icon}{label}</span><span className="text-yellow-400 font-mono font-bold">{value}{label===t.zoom?'x':'°'}</span></div>
+                  <input type="range" min={min} max={max} step={step||1} value={value} onChange={e => set(parseFloat(e.target.value))} className="w-full h-2 bg-white/10 rounded-lg accent-yellow-400"/>
+                </div>
+              ))}
+              <button onClick={resetCustom} className="w-full py-2 text-xs font-bold text-white/40 hover:text-yellow-400 flex justify-center gap-2"><RotateCcw className="w-3 h-3"/> {t.reset}</button>
+            </div>
+          )}
+
+          <button
+            onClick={generateImage}
+            disabled={isLoading || !selectedImage || (!selectedAngle && !isCustomActive)}
+            className={`w-full py-5 rounded-2xl font-black text-xl uppercase ${isLoading?'bg-white/10 text-white/20 cursor-not-allowed':'bg-yellow-400 text-black'}`}
+          >
+            {isLoading ? <><Loader2 className="w-6 h-6 animate-spin"/> {t.generating}</> : <><Sparkles className="w-6 h-6"/> {t.generate}</>}
+          </button>
+
+          {error && <p className="text-red-500 text-center font-bold">{error}</p>}
+        </div>
+
+        {/* Result */}
+        {generatedImage && (
+          <div className="space-y-4">
+            <div className="relative rounded-3xl overflow-hidden bg-white/5 border border-white/10 p-4">
+              <img src={generatedImage} alt="Generated" className="w-full h-auto rounded-2xl"/>
+              <button onClick={downloadImage} className="absolute top-8 right-8 p-3 bg-yellow-400 text-black rounded-xl">
+                <Download className="w-5 h-5"/>
+              </button>
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      <footer className="mt-20 py-12 border-t border-white/5 text-center px-6 space-y-4">
+        <p className="text-yellow-400 font-bold text-xl">{t.getApiKey}</p>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-bold flex items-center justify-center gap-2">
+          <ExternalLink className="w-5 h-5 text-yellow-400"/> {t.visitAIStudio}
+        </a>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center">
+            <User className="w-6 h-6 text-yellow-400"/>
+          </div>
+          <p className="text-white/40 font-medium text-lg">{t.footer}</p>
+        </div>
+      </footer>
+
+    </div>
+  );
+                  }  const [height, setHeight] = useState(0);
   const [isCustomActive, setIsCustomActive] = useState(false);
 
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
