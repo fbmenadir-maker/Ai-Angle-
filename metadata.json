@@ -1,5 +1,5 @@
 {
-  "name": "AI ANGLE By Nadir Infograph",
-  "description": "An AI tool to generate images from different camera angles based on an uploaded image.",
+  "name": "AI ANGLE Tool",
+  "description": "A utility tool for generating images from different camera angles.",
   "requestFramePermissions": []
 }
