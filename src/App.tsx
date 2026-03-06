@@ -12,29 +12,89 @@ interface Angle {
   prompt: string;
 }
 
-// --- Constants ---
+// --- Sample Angles ---
 const ANGLES: Angle[] = [
-  {
-    id: 'top-down',
-    title: { en: 'Top-down view', fr: 'Vue de dessus', ar: 'منظر من الأعلى' },
-    prompt: 'Execute a 90-degree vertical overhead shot...'
-  },
-  {
-    id: 'low-cinematic',
-    title: { en: 'Low cinematic angle', fr: 'Angle cinématique bas', ar: 'زاوية سينمائية منخفضة' },
-    prompt: 'Position the camera at ground level, tilted upwards...'
-  }
-  // أضف باقي الزوايا هنا بنفس التنسيق
+  { id: 'top-down', title: { en: 'Top-down', fr: 'Vue de dessus', ar: 'من الأعلى' }, prompt: '90-degree vertical overhead shot.' },
+  { id: 'low-cinematic', title: { en: 'Low cinematic', fr: 'Angle cinématique bas', ar: 'زاوية سينمائية منخفضة' }, prompt: 'Ground-level tilted upwards.' },
 ];
 
 // --- Translations ---
 const TRANSLATIONS = {
-  en: { title: 'AI ANGLE By Nadir Infograph', uploadTitle: 'Upload Image', uploadDesc: 'Drag and drop or click to select', selectAngle: 'Select Camera Angle', custom: 'Custom Controls', rotation: 'Horizontal Rotation', tilt: 'Vertical Tilt', zoom: 'Zoom Level', height: 'Camera Height', generate: 'Generate Image', generating: 'Generating...', download: 'Download', footer: 'This tool was developed by: Nadir Houamria', error: 'An error occurred. Please try again.', noImage: 'Please upload an image first.', noAngle: 'Please select an angle or use custom controls.', reset: 'Reset Sliders' },
-  fr: { title: 'AI ANGLE Par Nadir Infograph', uploadTitle: 'Télécharger l\'image', uploadDesc: 'Glissez-déposez ou cliquez pour sélectionner', selectAngle: 'Sélectionner l\'angle de la caméra', custom: 'Contrôles Personnalisés', rotation: 'Rotation Horizontale', tilt: 'Inclinaison Verticale', zoom: 'Niveau de Zoom', height: 'Hauteur de Caméra', generate: 'Générer l\'image', generating: 'Génération...', download: 'Télécharger', footer: 'Cet outil a été développé par : Nadir Houamria', error: 'Une erreur est survenue. Veuillez réessayer.', noImage: 'Veuillez d\'abord télécharger une image.', noAngle: 'Veuillez sélectionner un angle ou utiliser les contrôles.', reset: 'Réinitialiser' },
-  ar: { title: 'AI ANGLE By Nadir Infograph', uploadTitle: 'رفع صورة', uploadDesc: 'اسحب وأفلت أو انقر للاختيار', selectAngle: 'اختر زاوية الكاميرا', custom: 'مخصص', rotation: 'دوران أفقي', tilt: 'إمالة رأسية', zoom: 'مستوى التقريب', height: 'ارتفاع الكاميرا', generate: 'توليد الصورة', generating: 'جاري التوليد...', download: 'تحميل', footer: 'هذه الآداة من تطوير : حوامرية نذير', error: 'حدث خطأ. يرجى المحاولة مرة أخرى.', noImage: 'يرجى رفع صورة أولاً.', noAngle: 'يرجى اختيار زاوية أو استخدام أدوات التحكم المخصصة.', reset: 'إعادة تعيين' }
+  en: { title: 'AI ANGLE', uploadTitle: 'Upload Image', selectAngle: 'Select Angle', generate: 'Generate', generating: 'Generating...', download: 'Download', noImage: 'Please upload an image.', noAngle: 'Please select an angle.', error: 'Error occurred.' },
+  fr: { title: 'AI ANGLE', uploadTitle: 'Télécharger image', selectAngle: 'Sélectionner angle', generate: 'Générer', generating: 'Génération...', download: 'Télécharger', noImage: 'Téléchargez une image.', noAngle: 'Sélectionnez un angle.', error: 'Erreur.' },
+  ar: { title: 'AI ANGLE', uploadTitle: 'رفع صورة', selectAngle: 'اختر زاوية', generate: 'توليد', generating: 'جاري التوليد...', download: 'تحميل', noImage: 'يرجى رفع صورة أولاً.', noAngle: 'اختر زاوية.', error: 'حدث خطأ.' },
 };
 
 export default function App() {
+  const [lang, setLang] = useState<Language>('ar');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedAngle, setSelectedAngle] = useState<string>('');
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const t = TRANSLATIONS[lang];
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setSelectedImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const generate = async () => {
+    if (!selectedImage) { setError(t.noImage); return; }
+    if (!selectedAngle) { setError(t.noAngle); return; }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.OPENROUTER_API_KEY! });
+      const base64Data = selectedImage.split(',')[1];
+      const mimeType = selectedImage.split(';')[0].split(':')[1];
+
+      const angle = ANGLES.find(a => a.id === selectedAngle);
+      const prompt = angle?.prompt || '';
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: [{ inlineData: { data: base64Data, mimeType } }, { text: prompt }]
+      });
+
+      const imgPart = response.candidates[0]?.content.parts.find(p => p.inlineData);
+      if (imgPart) setGeneratedImage(`data:image/png;base64,${imgPart.inlineData!.data}`);
+      else throw new Error('No image returned');
+    } catch (err) { console.error(err); setError(t.error); }
+    finally { setIsLoading(false); }
+  };
+
+  const downloadImage = () => {
+    if (!generatedImage) return;
+    const link = document.createElement('a');
+    link.href = generatedImage;
+    link.download = `ai-angle-${selectedAngle}.png`;
+    link.click();
+  };
+
+  return (
+    <div className={lang === 'ar' ? 'rtl' : 'ltr'}>
+      <h1>{t.title}</h1>
+      <div onClick={() => fileInputRef.current?.click()}>{t.uploadTitle}</div>
+      <input type="file" ref={fileInputRef} onChange={handleUpload} hidden accept="image/*" />
+      <select value={selectedAngle} onChange={e => setSelectedAngle(e.target.value)}>
+        <option value="">{t.selectAngle}</option>
+        {ANGLES.map(a => <option key={a.id} value={a.id}>{a.title[lang]}</option>)}
+      </select>
+      <button onClick={generate} disabled={isLoading}>{isLoading ? t.generating : t.generate}</button>
+      {generatedImage && <img src={generatedImage} alt="Generated" />}
+      {generatedImage && <button onClick={downloadImage}>{t.download}</button>}
+      {error && <p>{error}</p>}
+    </div>
+  );
+}export default function App() {
   const [lang, setLang] = useState<Language>('ar');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedAngle, setSelectedAngle] = useState<string>('');
