@@ -1,39 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { Upload, Download, Camera, Loader2, ChevronDown, Sparkles, User, SlidersHorizontal, Maximize, Minimize, Move, RotateCcw, Settings2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
-// --- Types ---
-type Language = 'en' | 'fr' | 'ar';
-
-interface Angle {
-  id: string;
-  title: { en: string; fr: string; ar: string };
-  prompt: string;
-}
-
-// --- Sample Angles ---
-const ANGLES: Angle[] = [
-  { id: 'top-down', title: { en: 'Top-down', fr: 'Vue de dessus', ar: 'من الأعلى' }, prompt: '90-degree vertical overhead shot.' },
-  { id: 'low-cinematic', title: { en: 'Low cinematic', fr: 'Angle cinématique bas', ar: 'زاوية سينمائية منخفضة' }, prompt: 'Ground-level tilted upwards.' },
-];
-
-// --- Translations ---
-const TRANSLATIONS = {
-  en: { title: 'AI ANGLE', uploadTitle: 'Upload Image', selectAngle: 'Select Angle', generate: 'Generate', generating: 'Generating...', download: 'Download', noImage: 'Please upload an image.', noAngle: 'Please select an angle.', error: 'Error occurred.' },
-  fr: { title: 'AI ANGLE', uploadTitle: 'Télécharger image', selectAngle: 'Sélectionner angle', generate: 'Générer', generating: 'Génération...', download: 'Télécharger', noImage: 'Téléchargez une image.', noAngle: 'Sélectionnez un angle.', error: 'Erreur.' },
-  ar: { title: 'AI ANGLE', uploadTitle: 'رفع صورة', selectAngle: 'اختر زاوية', generate: 'توليد', generating: 'جاري التوليد...', download: 'تحميل', noImage: 'يرجى رفع صورة أولاً.', noAngle: 'اختر زاوية.', error: 'حدث خطأ.' },
-};
 
 export default function App() {
-  const [lang, setLang] = useState<Language>('ar');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedAngle, setSelectedAngle] = useState<string>('');
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const t = TRANSLATIONS[lang];
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,139 +16,53 @@ export default function App() {
     }
   };
 
-  const generate = async () => {
-    if (!selectedImage) { setError(t.noImage); return; }
-    if (!selectedAngle) { setError(t.noAngle); return; }
-
+  const generateImage = async () => {
+    if (!selectedImage) return;
     setIsLoading(true);
-    setError(null);
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.OPENROUTER_API_KEY! });
       const base64Data = selectedImage.split(',')[1];
       const mimeType = selectedImage.split(';')[0].split(':')[1];
 
-      const angle = ANGLES.find(a => a.id === selectedAngle);
-      const prompt = angle?.prompt || '';
-
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: [{ inlineData: { data: base64Data, mimeType } }, { text: prompt }]
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            { text: "Re-render this scene from a new perspective maintaining full consistency." }
+          ]
+        }
       });
 
-      const imgPart = response.candidates[0]?.content.parts.find(p => p.inlineData);
-      if (imgPart) setGeneratedImage(`data:image/png;base64,${imgPart.inlineData!.data}`);
-      else throw new Error('No image returned');
-    } catch (err) { console.error(err); setError(t.error); }
-    finally { setIsLoading(false); }
-  };
-
-  const downloadImage = () => {
-    if (!generatedImage) return;
-    const link = document.createElement('a');
-    link.href = generatedImage;
-    link.download = `ai-angle-${selectedAngle}.png`;
-    link.click();
-  };
-
-  return (
-    <div className={lang === 'ar' ? 'rtl' : 'ltr'}>
-      <h1>{t.title}</h1>
-      <div onClick={() => fileInputRef.current?.click()}>{t.uploadTitle}</div>
-      <input type="file" ref={fileInputRef} onChange={handleUpload} hidden accept="image/*" />
-      <select value={selectedAngle} onChange={e => setSelectedAngle(e.target.value)}>
-        <option value="">{t.selectAngle}</option>
-        {ANGLES.map(a => <option key={a.id} value={a.id}>{a.title[lang]}</option>)}
-      </select>
-      <button onClick={generate} disabled={isLoading}>{isLoading ? t.generating : t.generate}</button>
-      {generatedImage && <img src={generatedImage} alt="Generated" />}
-      {generatedImage && <button onClick={downloadImage}>{t.download}</button>}
-      {error && <p>{error}</p>}
-    </div>
-  );
-}export default function App() {
-  const [lang, setLang] = useState<Language>('ar');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedAngle, setSelectedAngle] = useState<string>('');
-  const [rotation, setRotation] = useState(0);
-  const [tilt, setTilt] = useState(0);
-  const [zoom, setZoom] = useState(1.0);
-  const [height, setHeight] = useState(0);
-  const [isCustomActive, setIsCustomActive] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const t = TRANSLATIONS[lang];
-  const isRtl = lang === 'ar';
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-        setGeneratedImage(null);
-        setError(null);
-      };
-      reader.readAsDataURL(file);
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          setGeneratedImage(`data:image/png;base64,${part.inlineData.data}`);
+          break;
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const resetCustom = () => { setRotation(0); setTilt(0); setZoom(1.0); setHeight(0); };
-
-  const generateImage = async () => {
-    if (!selectedImage) { setError(t.noImage); return; }
-    if (!selectedAngle && !isCustomActive) { setError(t.noAngle); return; }
-    setIsLoading(true); setError(null);
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.OPENROUTER_API_KEY! });
-      let finalPrompt = '';
-
-      if (isCustomActive) {
-        finalPrompt = `Act as a 3D camera operator... rotation: ${rotation}, tilt: ${tilt}, zoom: ${zoom}, height: ${height}`;
-      } else {
-        const angleData = ANGLES.find(a => a.id === selectedAngle);
-        if (!angleData) throw new Error("Invalid angle");
-        finalPrompt = `Generate a new image... ${angleData.prompt}`;
-      }
-
-      const base64Data = selectedImage.split(',')[1];
-      const mimeType = selectedImage.split(';')[0].split(':')[1];
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ inlineData: { data: base64Data, mimeType } }, { text: finalPrompt }] }
-      });
-
-      const imgPart = response.candidates[0].content.parts.find(p => p.inlineData);
-      if (!imgPart) throw new Error("No image generated");
-      setGeneratedImage(`data:image/png;base64,${imgPart!.inlineData!.data}`);
-
-    } catch (err) { console.error(err); setError(t.error); }
-    finally { setIsLoading(false); }
-  };
-
-  const downloadImage = () => {
-    if (!generatedImage) return;
-    const link = document.createElement('a');
-    link.href = generatedImage;
-    link.download = `ai-angle-${isCustomActive ? 'custom' : selectedAngle}.png`;
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-  };
-
-  return <div className={`min-h-screen bg-[#0a0a0a] text-white ${isRtl ? 'rtl' : 'ltr'}`}> {/* باقي الكود هنا مثل السابق */}</div>;
-}  { id: 'low-cinematic', title: { en: 'Low cinematic angle', fr: 'Angle cinématique bas', ar: 'زاوية سينمائية منخفضة' }, prompt: 'Position the camera at ground level, tilted upwards at a sharp angle. Create a powerful, heroic perspective that emphasizes the subject’s scale and dominance.' },
-  { id: '3-4-left', title: { en: '3/4 left angle', fr: 'Angle 3/4 gauche', ar: 'زاوية 3/4 يسار' }, prompt: 'Orbit the camera 45 degrees to the left of the subject. Show a three-quarter perspective that highlights the subject’s volume and depth in the 3D space.' },
-  { id: 'over-shoulder', title: { en: 'Over-the-shoulder shot', fr: 'Plan par-dessus l\'épaule', ar: 'لقطة من فوق الكتف' }, prompt: 'Place the camera behind a secondary element or shoulder, focusing on the primary subject. Use a shallow depth of field to create an intimate, narrative perspective.' },
-  { id: 'side-profile', title: { en: 'Side profile', fr: 'Profil latéral', ar: 'ملف جانبي' }, prompt: 'Move the camera to a precise 90-degree side-on position at eye level. Capture a clean profile view, maintaining strict horizontal alignment.' },
-  { id: 'wide-establishing', title: { en: 'Wide establishing angle', fr: 'Angle large de situation', ar: 'زاوية تأسيسية واسعة' }, prompt: 'Pull the camera significantly back along the Z-axis. Reveal the full environment and context, making the subject part of a larger, detailed landscape.' },
-  { id: 'dynamic-tilt', title: { en: 'Dynamic tilt (Dutch angle)', fr: 'Inclinaison dynamique (Angle hollandais)', ar: 'إمالة ديناميكية (زاوية هولندية)' }, prompt: 'Rotate the camera 25 degrees on its roll axis. Create a dynamic, tilted horizon line that conveys energy, tension, or a stylized cinematic look.' },
-  { id: 'close-up-frontal', title: { en: 'Close-up frontal', fr: 'Gros plan frontal', ar: 'لقطة قريبة أمامية' }, prompt: 'Move the camera forward for an intimate close-up. Focus on the subject’s face or central features with high detail and clarity at eye level.' },
-  { id: 'high-angle', title: { en: 'High angle perspective', fr: 'Perspective en plongée', ar: 'منظور زاوية عالية' }, prompt: 'Position the camera above the subject, looking down at a 45-degree angle. Provide a clear overview of the subject and its immediate surroundings.' },
-  { id: 'orbit-shot', title: { en: 'Orbit shot position', fr: 'Position de prise de vue en orbite', ar: 'وضعية لقطة المدار' }, prompt: 'Capture a dynamic frame from a 360-degree orbit. The camera is at a diagonal 45-degree angle, showing the subject from a unique spatial perspective.' },
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">AI ANGLE</h1>
+      <input ref={fileInputRef} type="file" onChange={handleUpload} accept="image/*" />
+      <button onClick={generateImage} disabled={!selectedImage || isLoading} className="ml-4 px-4 py-2 bg-yellow-400 text-black font-bold rounded">
+        {isLoading ? "Generating..." : "Generate"}
+      </button>
+      {generatedImage && (
+        <div className="mt-6">
+          <img src={generatedImage} alt="Generated" className="max-w-full rounded" />
+        </div>
+      )}
+    </div>
+  );
+}patial perspective.' },
   { id: 'extreme-closeup', title: { en: 'Extreme Close-up', fr: 'Gros plan extrême', ar: 'لقطة قريبة جداً' }, prompt: 'Macro lens perspective. Focus exclusively on a tiny detail or texture of the subject, magnifying it to fill the entire frame with hyper-realistic detail.' },
   { id: 'fisheye', title: { en: 'Fisheye Lens', fr: 'Objectif Fisheye', ar: 'عدسة عين السمكة' }, prompt: 'Apply an ultra-wide 180-degree fisheye distortion. Curvate the environment around the subject to create a spherical, immersive visual effect.' },
   { id: 'drone-aerial', title: { en: 'Drone Aerial View', fr: 'Vue aérienne par drone', ar: 'منظر جوي (درون)' }, prompt: 'High-altitude drone perspective. Look down at the subject from a significant height, capturing the vastness of the surrounding environment.' },
